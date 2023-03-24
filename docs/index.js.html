@@ -1,0 +1,2116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: index.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: index.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/*
+Version: 23.3
+
+Version     Date             Author          Summary
+---------------------------------------------------------
+21.9        Feb-14-22       Kevin Lazarz    Added fix for LLAPEX-403 (accessible html tables) 
+22.0        Feb-14-22       Kevin Lazarz    Added alt-text fix - add alt attribute to all images which do not have alt
+22.1        Feb-15-22       Kevin Lazarz    Added fix for landmark issue (LLAPEX-401) and list issue (LLAPEX-400)
+22.2        Feb-17-22       Kevin Lazarz    Role back LLAPEX-400 due issues in some workshops
+22.3        Mar-08-22       Kevin Lazarz    Temp fix for list issues LLAPEX-400, added QA check for images missing alt-text, changed numbering for table header
+22.4        Mar-30-22       Ashwin Agarwal  Added alt-text for modal images (LLAPEX-431)
+22.5        Apr-1-22        Ashwin Agarwal  Created global main.js (merge main.js * main.sprint.js) - LLAPEX-440
+22.6        Apr-18-22       Ashwin Agarwal  Accessibility bugs in JavaScript - anchor not in &lt;li> - LLAPEX-400
+22.7        Apr-20-22       Ashwin Agarwal  Add a static header for sprints - LLAPEX-448
+22.8        May-09-22       Ashwin Agarwal  Single sourcing does not work for included files - LLAPEX-477
+22.9        Jun-01-22       Ashwin Agarwal  Remove header, custom table caption (LLAPEX-418), hide expand/collapse button (LLAPEX-465), variables (LLAPEX-487), object storage URL changes (LLAPEX-488)
+22.10       Jun-01-22       Ashwin Agarwal  Remove feature where the expand/collapse button disappears when there are less than or equal to 2 h2 sections
+22.11       Jun-15-22       Ashwin Agarwal  Relative path incorrect for included files (LLAPEX-480)
+22.12       Jul-15-22       Kevin Lazarz    Replace object storage links with github.io link
+23.0        Aug-24-22       Kevin Lazarz    Added code to allow embedding videos from Oracle Video Hub (LLAPEX-559)
+23.1        Sep-21-22       Kevin Lazarz    Fix for LLAPEX-595
+23.2        Nov-10-22       Kevin Lazarz    Added LLAPEX-637 &amp; LLAPEX-642
+23.3        Mar-13-23       Dan Williams    Provided an example of imperative text (eg.'Start' not 'Starting) (LLAPEX-699)
+23.4        Mar-17-23       Dan Williams    Updated imperative text ( eg. 'Start' not 'Starting') to include where issue is within Lab (LLAPEX-701)
+*/
+
+"use strict";
+var showdown = "https://oracle-livelabs.github.io/common/redwood-hol/js/showdown.min.js";
+var highlight = "https://oracle-livelabs.github.io/common/redwood-hol/js/highlight.min.js";
+const related_path = "https://oracle-livelabs.github.io/common/related/";
+
+let main = function() {
+    let manifestFileName = "manifest.json";
+    let expandText = "Expand All Tasks";
+    let collapseText = "Collapse All Tasks";
+    const copyButtonText = "Copy";
+    const queryParam = "lab";
+    const utmParams = [
+      {
+        "url": "https://signup.cloud.oracle.com",
+        "inParam": "customTrackingParam",
+        "outParam": "sourceType"
+      },
+      {
+        "url": "https://myservices.us.oraclecloud.com/mycloud/signup",
+        "inParam": "customTrackingParam",
+        "outParam": "sourceType"
+      },
+      {
+        "url": "https://myservices.oraclecloud.com/mycloud/signup",
+        "inParam": "customTrackingParam",
+        "outParam": "sourceType"
+      },
+      {
+        "url": "https://cloud.oracle.com",
+        "inParam": "customTrackingParam",
+        "outParam": "sourceType"
+      }
+    ];
+    const nav_param_name = 'nav';
+    const header_param_name = 'header';
+    const extendedNav = { '#last': 2, '#next': 1, '#prev': -1, "#first": -2 };
+    $.ajaxSetup({ cache: true });
+
+    let manifest_global;
+    
+    /**
+     * Get the value of a query parameter
+     *  @param {string} name - Name of the query parameter
+     *  @param {string} url - URL to search. Defaults to window.location.href
+     *  @return {string} Value of the query parameter
+     * @example
+     *  // returns "John"
+     *  getParam("name", "http://example.com?name=John");
+     *  // returns null
+     *  getParam("name", "http://example.com");
+     */
+    $(document).ready(function() {
+        let manifestFileContent;
+        if (getParam("manifest")) {
+            manifestFileName = getParam("manifest");
+        }
+        /**
+         * Load the Showdown library and the manifest file
+         *  @param {string} showdown - URL of the Showdown library
+         *  @param {string} manifestFileName - URL of the manifest file
+         *  @return {object} Showdown library and manifest file
+         */
+        $.when(
+            $.getScript(showdown, function() {
+                console.log("Showdown library loaded!");
+            }),
+            /**
+             * Load the manifest file
+             *  @param {string} manifestFileName - URL of the manifest file
+             *  @return {object} Manifest file
+             */
+            $.getJSON(manifestFileName, function(manifestFile) {
+                if (manifestFile.workshoptitle !== undefined) { // if manifest file contains a field for workshop title
+                    document.getElementsByClassName("hol-Header-logo")[0].innerText = manifestFile.workshoptitle; // set title in the HTML output (DBDOC-2392)
+                }
+                console.log("Manifest file loaded!");
+
+                // added for include feature: [DBDOC-2434] Include any file inside of Markdown before rendering
+                if (getParam("manifest")) {
+                    /**
+                     * Update the manifest file to include the path of the manifest file
+                     *  @param {object} manifestFile - Manifest file
+                     *  @param {string} manifestFileName - URL of the manifest file
+                     *  @return {object} Manifest file  with updated path  
+                     */
+                    $(manifestFile.tutorials).each(function() {                        
+                        if ($(this)[0].filename.indexOf("http") == -1 &amp;&amp; $(this)[0].filename[0] !== "/") {
+                            $(this)[0].filename = manifestFileName.substring(0, manifestFileName.lastIndexOf("/") + 1) + $(this)[0].filename;
+                        }
+                    });
+                }
+
+                // added for include feature: [DBDOC-2434] Include any file inside of Markdown before rendering
+                for (let short_name in manifestFile.include) {
+                    let include_fname = manifestFile.include[short_name];
+
+                    if (include_fname.indexOf("http") == -1  &amp;&amp; include_fname[0] !== "/") { // if the link used is relative
+                        include_fname = manifestFileName.substring(0, manifestFileName.lastIndexOf("/") + 1) + include_fname;
+                    }
+
+                    $.get(include_fname, function(included_file_content) {                        
+                        manifestFile.include[short_name] = {
+                            'path': include_fname,
+                            'content': included_file_content
+                        }                        
+                    });                
+                }  // end of include feature                                                    
+                if (manifestFile.variables) { // if manifest file contains a field for variables
+                    if (!Array.isArray(manifestFile.variables)) { // if variables is not an array, make it an array
+                        manifestFile['variables'] = Array(manifestFile.variables); // convert to array
+                    }
+                    /**
+                     * Get the value of a variable from a file
+                     *  @param {string} i - URL of the file containing the variable value
+                     *  @return {object} Value of the variable
+                    */                     
+                    $(manifestFile.variables).each(function(_, i) { // for each variable, get the value from the file
+                        $.getJSON(i, function(variables) { // get the value of the variable from the file 
+                            if (!manifestFile['variable_values']) { // if variable_values is not defined, define it                             
+                                manifestFile['variable_values'] = {}; // define variable_values
+                            }
+                            $.extend(manifestFile['variable_values'], variables); // extend the variable_values with the values from the file                    
+                        });
+                    })                                                            
+                }
+
+                manifest_global = manifestFileContent = manifestFile; //reading the manifest file and storing content in manifestFileContent variable                
+            }), 
+            /**
+             *  Load the highlight.js library
+             *  @param {string} highlight - URL of the highlight.js library
+             *  @return {object} highlight.js library
+             */
+            $.getScript(highlight, function() { //loading highlight.js library
+                console.log("Highlight.js loaded!"); //logging the message in the console
+            })
+            /**
+             * Load the highlight.js library
+             *  @param {string} highlight - URL of the highlight.js library
+             *  @return {object} highlight.js library
+             */
+        ).done(function() {     //when all the above ajax calls are done, do the following        
+            init();
+            let selectedTutorial = setupTutorialNav(manifestFileContent); //populate side navigation based on content in the manifestFile            
+            let articleElement = document.createElement('article'); //creating an article that would contain MD to HTML converted content
+
+            loadTutorial(articleElement, selectedTutorial, manifestFileContent, toggleTutorialNav); //load the tutorial content in the article element
+            
+            prepareToc(manifestFileContent);  //prepare the table of contents
+            setupRelatedSection(manifestFileContent); //setup the related section    
+            /**
+             * Expand the section based on the hash in the URL
+             *  @param {string} hash - Hash in the URL
+             *  @return {object} Expanded section
+             */
+            setTimeout(function() { //wait for 1 second before executing the following code
+                if (location.hash.slice(1))
+                    expandSectionBasedOnHash($("li[data-unique='" + location.hash.slice(1) + "']")); //expand the section based on the hash in the URL
+
+                if ($('#leftNav-toc').hasClass('scroll')) //if the left navigation is scrollable
+                    $('.selected')[0].scrollIntoView(true); //scroll to the selected section
+            }, 1000);
+        });
+    });
+
+    // specifies when to do when window is scrolled
+    /**
+     * Specifies what to do when the window is scrolled
+     *  @param {object} window - Window
+     *  @return {object} Left navigation
+     *  @return {object} Header
+     *  @return {object} Footer
+     *  @return {object} Window
+    */
+    $(window).scroll(function() {
+        // if ($('#contentBox').height() > $('#leftNav-toc').height() || ($('#leftNav-toc').height() + $('header').height()) > $(window).height()) {
+        if (($('#contentBox').outerHeight() + $('header').outerHeight() + $('footer').outerHeight()) > $(window).outerHeight()) {
+            $('#leftNav-toc').addClass("scroll");
+
+            if (($(window).scrollTop() + $(window).height()) > $('footer').offset().top) { //if footer is seen
+                $('#leftNav-toc').css('max-height', $('footer').offset().top - $('#leftNav-toc').offset().top); //set the max height of the left navigation to the footer
+            } else { //if footer is not seen
+                $('#leftNav-toc').css('max-height', $(window).height() - $('header').height());  //set the max height of the left navigation to the window height
+            }
+        } else {
+            $('#leftNav-toc').removeClass("scroll"); //if the left navigation is not scrollable, remove the scroll class
+        }
+
+        try {
+            if ((document.querySelector('.selected .active').getBoundingClientRect().y + document.querySelector('.selected .active').clientHeight) > $(window).height() &amp;&amp; $('#leftNav-toc').hasClass("scroll")) //if the active section is not visible in the left navigation
+                $('.selected .active')[0].scrollIntoView(false); //scroll to the active section
+        } catch (e) {};
+
+        let active = $('#contentBox').find('[data-unique]').first(); //get the first element with data-unique attribute
+        $('#contentBox').find('[data-unique]').each(function() { //for each element with data-unique attribute
+            if (($(this).offset().top - $(window).scrollTop() - $('header').height()) &lt; Math.abs($(active).offset().top - $(window).scrollTop())) { //if the offset of the element is less than the offset of the active element
+                active = $(this); //set the active element to the current element
+            }
+        });
+        $('.selected .toc .toc-item').removeClass('active'); //remove the active class from all the toc items
+        $('.selected .toc').find('[data-unique="' + $(active).attr('data-unique') + '"]').addClass('active'); //add the active class to the toc item that matches the active element
+    });
+    /**
+     * Specifies what to do when the hash changes or the page is loaded
+     *  @param {object} window - Window
+     *  @return {object} Next or previous tutorial
+     */
+    $(window).on('hashchange load', function(e) { //when the hash changes or the page is loaded
+        try { // if next or previous is not available then it raises exception
+            let position = extendedNav[e.target.location.hash] //get the position of the next or previous tutorial
+            if (position !== undefined) //if the position is not undefined
+                changeTutorial(getMDFileName(selectTutorial(manifest_global, position).filename)); //change the tutorial to the next or previous tutorial
+        } catch (e) {}; //if the next or previous is not available, do nothing
+    }); //end of hashchange event
+
+    /**
+     * Specifies what to do when the window is resized
+     *  @param {object} window - Window
+     *  @return {object} Left navigation
+     *  @return {object} Header
+     * @return {object} Footer
+     *  @return {object} Window
+     * @return {object} Content box
+     * @return {object} Content
+    */
+    let init = function() {
+            // hide header if the url contains header=hide
+            let header_param = getParam(header_param_name); //get the value of the header parameter
+            if (header_param == 'hide') { //if the header parameter is hide
+                $('header').hide(); //hide the header
+                $('body').css("padding-top", "0px"); //set the padding top of the body to 0px
+            }
+            // $('.hol-Header-actions').prependTo('.hol-Header-wrap').show();
+            $('.hol-Header-actions').prependTo('.hol-Header-wrap'); //prepend the header actions to the header wrap
+            $('&lt;div id="tutorial-title">&lt;/div>').appendTo(".hol-Header-logo")[0]; //create a div with id tutorial-title and append it to the header logo
+
+            /**
+             * Specifies what to do when the openNav button is clicked
+             *  @param {object} openNav button - Open navigation button
+             *  @return {object} Window
+             *  @return {object} Left navigation
+             *  @return {object} Content box
+             *  @return {object} Content
+             *  @return {object} Footer
+             *  @return {object} Header
+             *  @return {object} Right link
+             *  @return {object} Left link
+             *  @return {object} Tutorial title
+             * @return {object} Tutorial navigation
+             *  @return {object} Tutorial navigation button
+             *  @return {object} Tutorial navigation button icon
+             *  @return {object} Tutorial navigation button text
+             */
+            $('#openNav').click(function() { //when the openNav button is clicked
+                let nav_param = getParam(nav_param_name); //get the value of the nav parameter
+                if (!nav_param || nav_param === 'open') { //if the nav parameter is not defined or is open
+                    window.history.pushState('', '', setParam(window.location.href, nav_param_name, 'close')); //set the nav parameter to close
+                } else if (nav_param === 'close') { //if the nav parameter is close
+                    window.history.pushState('', '', setParam(window.location.href, nav_param_name, 'open')); //set the nav parameter to open
+                }
+                toggleTutorialNav(); //toggle the tutorial navigation
+            });
+
+            $('.hol-Footer-topLink').after($(document.createElement('a')).addClass('hol-Footer-rightLink hide')); //add the right link to the footer
+            $('.hol-Footer-topLink').before($(document.createElement('a')).addClass('hol-Footer-leftLink hide')); //add the left link to the footer
+            $('#contentBox').css('min-height', $(window).height() - $('header').outerHeight() - $('footer').outerHeight()); //set the min height of the content box to the window height minus the header and footer height
+            $('.hol-Header-actions').show('slide'); //show the header actions   
+        }
+        // the main function that loads the tutorial
+        /**
+         * 
+         * @param {*} articleElement 
+         * @param {*} selectedTutorial 
+         * @param {*} manifestFileContent 
+         * @param {*} callbackFunc 
+         */
+    let loadTutorial = function(articleElement, selectedTutorial, manifestFileContent, callbackFunc = null) {
+        $.get(selectedTutorial.filename, function(markdownContent) { //reading MD file in the manifest and storing content in markdownContent variable
+            console.log(selectedTutorial.filename + " loaded!");
+
+            if (selectedTutorial.filename == 'preview' &amp;&amp; markdownContent == "None") {
+                markdownContent = window.localStorage.getItem("mdValue");
+            }
+            
+            markdownContent = include(markdownContent, manifestFileContent.include); // added for include feature: [DBDOC-2434] Include any file inside of Markdown before rendering
+            markdownContent = substituteVariables(markdownContent, manifestFileContent.variable_values); // added for variable feature
+            markdownContent = singlesource(markdownContent, selectedTutorial.type); // implement show/hide feature based on the if tag (DBDOC-2430)
+            markdownContent = convertBracketInsideCopyCode(markdownContent); // converts &lt;> tags inside copy tag to &amp;lt; and &amp;gt; (DBDOC-2404)
+            markdownContent = addPathToImageSrc(markdownContent, selectedTutorial.filename); //adding the path for the image based on the filename in manifest
+            markdownContent = addPathToTypeHrefs(markdownContent); // if type is specified in the markdown, then add absolute path for it.
+            markdownContent = convertSingleLineCode(markdownContent);
+            markdownContent = convertCodeBlocks(markdownContent); // codeblock with multiple breaks don't render correctly, so I convert to codeblock here itself
+
+            $(articleElement).html(new showdown.Converter({
+                tables: true, //allows tables to rendered
+                parseImgDimensions: true, //allows image dimension to be specified in the markdown
+                metadata: true, // allows metadata to be added between --- and --- tags at the top of the markdown
+                simplifiedAutoLink: true, //transform http addresses automatically in to clickable URLs in HTML
+                strikethrough: true //allow strikethrough formatting
+            }).makeHtml(markdownContent)); //converting markdownContent to HTML by using showdown plugin
+
+            articleElement = updateOpenCloseButtonText(articleElement, manifestFileContent); // in the manifest file, you can specify task_type to specify different text
+            articleElement = showRightAndLeftArrow(articleElement, manifestFileContent);
+            articleElement = renderVideoHubVideos(articleElement); //adds iframe to Oracle Video Hub videos
+            articleElement = renderYouTubeVideos(articleElement); //adds iframe to YouTube videos
+            articleElement = updateH1Title(articleElement); //adding the h1 title in the Tutorial before the container div and removing it from the articleElement
+            articleElement = wrapSectionTag(articleElement); //adding each section within section tag
+            articleElement = wrapImgWithFigure(articleElement); //Wrapping images with figure, adding figcaption to all those images that have title in the MD
+            articleElement = addPathToAllRelativeHref(articleElement, selectedTutorial.filename); //adding the path for all HREFs based on the filename in manifest
+            articleElement = setH2Name(articleElement);
+            articleElement = makeAnchorLinksWork(articleElement); //if there are links to anchors (for example: #hash-name), this function will enable it work
+            articleElement = addTargetBlank(articleElement); //setting target for all ahrefs to _blank
+            articleElement = allowCodeCopy(articleElement); //adds functionality to copy code from codeblocks
+            articleElement = enableForceDownload(articleElement); // enables the force download feature (?download=1 must be mentioned at the end of the URL)
+            articleElement = injectUtmParams(articleElement);
+            articleElement = showTabs(articleElement, selectedTutorial.type); //show type options as tabs (DBDOC-2455)
+            articleElement = highlightCodeBlock(articleElement); // highlights the code in the codeblock (DBDOC-2494)
+            articleElement = addModalWindow(articleElement); // add modal window so that images open in full screen when clicked (DBDOC-2575)
+            updateHeadContent(selectedTutorial, manifestFileContent.workshoptitle); //changing document head based on the manifest
+
+            // adding link to the support forum URL in the footer if the manifest file contains it (DBDOC-2459 and DBDOC-2496)
+            addGoToForumLink(manifestFileContent.support);        
+            // adding social media link to the header
+            // addSocialMediaLink(manifestFileContent.help, manifestFileContent.workshoptitle);
+            // adding link to the Neep Help URL in the header if the manifest file contains it (DBDOC-2496)
+            addNeedHelpLink(manifestFileContent.help, manifestFileContent.workshoptitle);
+
+            if (getParam("qa") == "true") { //if the URL has qa=true, then add the QA section
+                articleElement = performQA(articleElement, markdownContent, manifestFileContent); //adding QA section to the articleElement
+            }
+        }).done(function() { // when the MD file is loaded, then do the following
+            $("main").html(articleElement); //placing the article element inside the main tag of the Tutorial template
+            setTimeout(function() { //setting timeout to 0 so that the code runs after the articleElement is placed in the main tag
+                setupContentNav(manifestFileContent, articleElement); //setting up the content navigation
+            }, 0); //sets up the collapse/expand button and open/close section feature
+
+            
+
+            //FOllowing code will make sure that landmarks have a unique title (LLAPEX-401)
+            document.getElementsByTagName("header")[0].setAttribute("title", "livelabs header"); //setting the title of the header
+            document.getElementsByTagName("main")[0].setAttribute("title", "livelabs main"); //setting the title of the main
+            document.getElementsByTagName("footer")[0].setAttribute("title", "livelabs footer"); //setting the title of the footer
+            //END of fix for landmarks
+
+            // Following code makes tables accessible (see LLAPEX-403)
+            $("table").attr("role","presentation"); //add role to table
+
+            var i = 0; //counter for table
+            var tables = document.getElementsByTagName("table"); //get all tables
+            let title = document.querySelector('title').innerText; //get the title of the page
+            let caption_start = '{: title="'; //start of the caption
+
+            for (i; i &lt; tables.length; i++) //loop through all tables
+                {   
+                    var table = tables[i]; //get the table           
+                    var capt = table.createCaption(); //  create a caption for the table
+                    let given_title = null; //title of the table
+                    let next_element = $($(tables)[i]).find('tr').last(); //get the last row of the table
+                    if (next_element.text().trim().startsWith(caption_start)) {     //if the last row starts with {: title=" then it is the title of the table                    
+                        given_title = next_element.text().trim().replace(caption_start, ""); //get the title
+                        given_title = given_title.replace('"}', ""); //remove the end of the title                       
+                        $(next_element).remove(); //remove the last row
+                    }                                       
+                    var tit = capt.textContent= 'Table ' + (i+1) + ': ' + (given_title || title); //set the title of the table              
+                    table.setAttribute("role", "presentation"); //add role to table
+                };
+            // END OF TABLE ACCESSIBILITY ENHANCEMENT
+
+            if (selectedTutorial.filename == 'preview') { //if the filename is preview, then it is a preview of the tutorial
+                let uploaded_images = JSON.parse(window.localStorage.getItem("imagesValue")); //getting the images from the local storage
+
+                // added for showing images in preview
+                if (uploaded_images !== null) { //if the images are not null, then replace the image src with the uploaded image src
+                    $('main').find('img').each(function(i, imageFile) { //looping through all images
+                        for (let i = 0; i &lt; uploaded_images.length; i++) { //looping through all uploaded images
+                            if ($(imageFile).attr('src').indexOf(uploaded_images[i].filename) >= 0) { //if the image src contains the uploaded image filename, then replace the image src with the uploaded image src
+                                $(imageFile).attr('src', uploaded_images[i].src); //replacing the image src with the uploaded image src
+                            }
+                        }
+                    });
+                }
+            }
+
+            if (getParam("qa") == "true") { //if the URL has qa=true, then add the QA section
+                dragElement(document.getElementById("qa-report")); //making the QA section draggable
+            } else {
+                collapseSection($("#module-content h2:not(:eq(0))"), "none"); //collapses all sections by default
+            }
+
+            if (callbackFunc) //if the callback function is not null, then call the callback function
+                callbackFunc(); //calling the callback function
+            /**
+             * This function is used to add the functionality to copy code from codeblocks
+             * @param {string} code - the code to be copied
+             *  @param {string} id - the id of the codeblock
+             *  @param {string} type - the type of the codeblock
+             *  @param {string} title - the title of the codeblock
+             *  @param {string} language - the language of the codeblock
+             *  @param {string} filename - the filename of the codeblock
+             *  @param {string} line - the line of the codeblock
+             *  @param {string} column - the column of the codeblock
+             *  @param {string} lineEnd - the lineEnd of the codeblock
+             *  @param {string} columnEnd - the columnEnd of the codeblock
+             *  @param {string} lineStart - the lineStart of the codeblock
+             *  @param {string} columnStart - the columnStart of the codeblock
+             *  @param {string} lineHighlight - the lineHighlight of the codeblock
+             *  @param {string} lineHighlightStart - the lineHighlightStart of the codeblock
+             *  @param {string} lineHighlightEnd - the lineHighlightEnd of the codeblock
+             *  @param {string} highlight - the highlight of the codeblock
+             *  @param {string} highlightStart - the highlightStart of the codeblock
+             */
+        }).fail(function() { //if the MD file is not found, then do the following
+            console.log(selectedTutorial.filename + ' not found! Please check that the file is available in the location provided in the manifest file.'); //logging the error message
+        });
+    }
+
+
+   /**
+    * 
+    * @param {string} markdown - the markdown to be converted to HTML
+    * @param {string} id - the id of the codeblock
+    * @param {string} type - the type of the codeblock
+    * @returns {string} - the converted markdown
+    *  
+ */ let convertSingleLineCode = function(markdown) { //DBDOC-2591: Code blocks break when line breaks (empty lines) are added
+        let regex_type = new RegExp(/`{3,4}(.*?)`{3,4}/g); //regex to find the code blocks
+        let contentToReplace = []; //array to store the content to replace
+
+        let matches;
+        do {
+            matches = regex_type.exec(markdown); //finding the code blocks
+            if (matches === null) {
+                $(contentToReplace).each(function(index, value) { //looping through all the content to replace
+                    markdown = markdown.replace(value.replace, value.with); //replacing the code blocks with the new code blocks
+                });
+                return markdown; //returning the markdown
+            }
+
+            contentToReplace.push({ //adding the content to replace to the array
+                "replace": matches[0], //the code block
+                "with": '`' + matches[1] + '`' //the new code block
+            });
+
+        } while (matches);
+    }
+
+    //DBDOC-2591: Code blocks break when line breaks (empty lines) are added
+    /**
+     * 
+     * @param {*} markdown 
+     * @returns {string} - the converted markdown
+     */
+    let convertCodeBlocks = function(markdown) {
+        let regex_type = new RegExp(/`{3,}(.*?)\n([\s\S|\n]*?)`{3,}/g);
+        let matches, remove, remove_space_regex;
+        let contentToReplace = [];
+
+        do {
+            let pre_tag = "&lt;pre>";
+            matches = regex_type.exec(markdown);
+            if (matches === null) {
+                $(contentToReplace).each(function(index, value) {
+                    // replace using split because the string has regex
+                    markdown = markdown.split(value.replace).join(value.with);
+                });
+                return markdown;
+            }
+            // else
+            remove = matches[2].substring(0, matches[2].indexOf(matches[2].trim())).replace(/\t/g, '    ');
+            // remove_space_regex = new RegExp("^" + remove, "gm");
+
+            if (matches[1].trim().length !== 0) {
+                pre_tag = '&lt;pre class="' + matches[1].trim() + '">';
+            }
+
+            let replace_with = matches[2].replace(/\t/g, '    ').split('\n');
+
+            for (let i = 0; i &lt; replace_with.length; i++) {
+                replace_with[i] = replace_with[i].replace(remove, '');
+            }
+            replace_with = replace_with.join('\n');
+
+            contentToReplace.push({
+                "replace": matches[0],
+                "with": pre_tag + '&lt;code>' + replace_with.trim() + '&lt;/code>&lt;/pre>'
+                    // "with": pre_tag + '&lt;code>' + matches[2].replace(/(?=[\r\n])\r?\n?/g,"\n") + '&lt;/code>&lt;/pre>'
+                    // "with": pre_tag + '&lt;code>' + matches[2].replace(remove_space_regex, '').trim().replace(/\t/g, '') + '&lt;/code>&lt;/pre>'
+            });
+        } while (matches);
+    }
+
+    // DBDOC-2575: Add ability to expand images to full screen
+    /**
+     * 
+     * @param {*} articleElement 
+     * @returns {string} - the converted markdown
+     *  
+     */
+    let addModalWindow = function(articleElement) {
+        let modalClose = $(document.createElement('span')).attr('id', 'modalClose').html("&amp;times;");
+        let modalImg = $(document.createElement('img')).attr('id', 'modalImg');
+        let modalCaption = $(document.createElement('div')).attr('id', 'modalCaption');
+        let modalWindow = $(document.createElement('div')).attr('id', 'modalWindow');
+
+        $(modalWindow).append([modalCaption, modalClose, modalImg]);
+        $(articleElement).append(modalWindow);
+
+        $(articleElement).find('img').click(function() {
+            $(modalImg).attr({ src: this.src, alt: this.alt });
+            $(modalWindow).addClass('show');
+            $(modalCaption).text(this.alt);
+        })
+        $(modalWindow).click(function() {
+            $(modalWindow).removeClass('show');
+        })
+
+        return articleElement;
+    }
+
+    // DBDOC-2455: Support for content selectable via tabs
+    /**
+     * 
+     * @param {*} articleElement 
+     * @param {*} type 
+     * @returns {string} - the converted markdown
+     */
+    let showTabs = function(articleElement, type) {
+            if ($.type(type) == "object") { // if true, it means select tab needs to be added
+                let div = $(document.createElement('div')).addClass('selection_tabs');
+                let tab = $(document.createElement('ul')).addClass('tab');
+
+                if (getParam("type") == false) {
+                    window.history.pushState('', '', setParam(window.location.href, 'type', Object.keys(type)[0]));
+                }
+                /**
+                 * @param {string} key - the key of the type object
+                 * @param {string} value - the value of the type object
+                 */
+                $(Object.keys(type)).each(function(_, type_key) {
+                    let li = $(document.createElement('li')).addClass('btn_if_' + type_key);
+                    // $(li).html('&lt;a href="' + setParam(window.location.href, 'type', type_key) + '">' + type[type_key] + '&lt;/a>');
+                    $(li).html('&lt;a href="#">' + type[type_key] + '&lt;/a>');
+                    $(li).find('a').click(function() {
+                        $(this).attr('href', setParam(window.location.href, 'type', type_key));
+                    });
+                    $(tab).append(li);
+
+                    if (type_key == getParam("type")) {
+                        $(li).find('a').addClass('active');
+                    }
+                });
+
+                $(div).append(tab);
+                $(articleElement).find('h2:not(:eq(0))').after(div);
+                $(articleElement).find('h1').after(div);
+                $(articleElement).find('.selection_tabs:not(:eq(0))').addClass('stick');
+            }
+
+            return articleElement;
+        }
+        // DBDOC-2494: added for syntax highlight feature. The syntax highlight feature uses the highlight.js plugin.
+    /**
+     * 
+     * @param {*} articleElement 
+     * @returns {string} - the converted markdown
+     */
+    let highlightCodeBlock = function(articleElement) {
+        $(articleElement).find('pre:not(.nohighlighting) code').each(function(_, block) {
+            hljs.highlightBlock(block);
+        });
+        return articleElement;
+    }
+
+    // DBDOC-2449: added for force download feature. To force download a file referenced in the link, append '?download=1' to the link.
+    /**
+     * 
+     * @param {*} articleElement 
+     * @returns {string} - the converted markdown
+     */
+    let enableForceDownload = function(articleElement) {
+        $(articleElement).find('a[href$="?download=1"]').each(function() { // loop through each link that ends with ?download=1
+            $(this).attr('download', ''); // set download attribute to the link
+            $(this)[0].href = $(this)[0].href.replace('?download=1', ''); // removes ?download=1 from the link
+        });
+        return articleElement;
+    }
+
+    // added for include feature: [DBDOC-2434] Include any file inside of Markdown before rendering
+    /**
+     * 
+     * @param {*} markdown 
+     * @param {*} include 
+     * @returns {string} - the converted markdown
+     */
+    let include = function(markdown, include) {
+        for (let short_name in include) {
+            if (typeof include[short_name] !== 'object')
+                continue;
+            include[short_name]['content'] = addPathToImageSrc(include[short_name]['content'], include[short_name]['path']);
+            markdown = markdown.split("[](include:" + short_name + ")").join(include[short_name]['content']);
+        }        
+        return markdown;
+    }
+
+    // added for variable substitute feature
+    /**
+     * 
+     * @param {*} markdown  - markdown string
+     * @param {*} all_variables  - object containing all variables
+     * @returns  {string} - the converted markdown
+     */
+    let substituteVariables = function(markdown, all_variables) { // all_variables is an object
+        for (let variable in all_variables) {  // loop through all variables
+            markdown = markdown.split("[](var:" + variable + ")").join(all_variables[variable]); // replace all instances of [](var:variable) with the value of the variable
+        }
+        return markdown; // return the markdown with all variables substituted
+    }
+
+    /**
+     * 
+     * @param {*} markdown  - markdown string
+     * @returns {string} - the converted markdown
+     */
+    let addPathToTypeHrefs = function(markdown) { 
+        let regex_type = new RegExp(/\[(?:.+?)\]\((&amp;type=(\S*?))\)/g); // regex to match all links with &amp;type= in the href
+        let matches;
+
+        do {
+            matches = regex_type.exec(markdown);
+            if (matches !== null) { // if there is a match
+                markdown = markdown.replace(matches[1], setParam(window.location.href, "type", matches[2])); // replace the link with the link with the type parameter added
+            }
+        } while (matches);
+
+        return markdown;
+    }
+    /**
+     * @param {string} markdown - markdown string
+     *  @param {string} path - path to the image
+     *  @returns {string} markdown - markdown string with the path to the image added to the src
+     */
+    let arrowClick = function() {            
+        if ($(this).text() === '-') {
+            $(this).next().next().fadeOut('fast', function() {
+                $(window).scroll();
+            });
+            $(this).text('+');
+        } else {
+            $(this).next().next().fadeIn('fast', function() {
+                $(window).scroll();
+            });
+            $(this).text('-');
+        }
+    }
+
+    /**
+     * 
+     * @param {*} manifestFileContent  - object containing the manifest file content 
+     * @returns {string} - the converted markdown
+     */
+    let setupRelatedSection = function(manifestFileContent) {
+        // this part has been added for LLAPEX-448
+        const max_related = 5;
+        let related_li = [];
+        if ('show_related' in manifestFileContent) { 
+            let related_content;
+            let tut_titles = [];
+            
+            for (let i = 0; i &lt; manifestFileContent.tutorials.length; i++) {
+                tut_titles[i] = manifestFileContent.tutorials[i].title.toLowerCase();
+            }                        
+            // sort the related content by the order of the tutorials
+            for (let i = 0; i &lt; manifestFileContent.show_related.length; i++) {                    
+                if (!('filename' in manifestFileContent.show_related[i]) || !('tags' in manifestFileContent.show_related[i]) || !('title' in manifestFileContent.show_related[i])) {
+                    continue;
+                } // if the related content does not have the required fields, skip it          
+                $.getJSON(related_path + manifestFileContent.show_related[i]['filename'], function(content) {      
+                    related_content = content;
+                }).done(function() {                    
+                    related_li[i] = $(document.createElement('li')).attr('id', 'related-content-' + i).css({'border-bottom': '0px', 'padding-left': '36px', 'cursor': 'default', 'background-color': 'rgb(0,0,0,0.06)'});
+                    
+                    let div_main = $(document.createElement('div'));
+                    let a = $(document.createElement('a')).css('cursor', 'pointer');                    
+                    let arrow, div;
+                    // if the related content is a tutorial, add the tutorial to the related content section
+                    /**
+                     *  @param {string} related_content - object containing the related content
+                     *  @param {string} manifestFileContent - object containing the manifest file content
+                     *  @param {string} i - index of the related content
+                     */
+                    $(a).click(function() {
+                        $(this).prev().click();
+                    }); // if the user clicks on the title, expand the related content section
+                    $(a).append($(document.createElement('div')).text(manifestFileContent.show_related[i]['title']).css({'font-weight': '600'}));
+                    $(div_main).append(a);
+                    $(related_li[i]).append(div_main);                    
+                    div = $(document.createElement('div')).attr('id', 'toc-related-' + i).addClass('toc');                                        
+                    $(div_main).append(div);                    
+                    // if the related content is a tutorial, add the tutorial to the related content section
+                    if ('state' in manifestFileContent.show_related[i] &amp;&amp; manifestFileContent.show_related[i]['state'] === "collapsed") {
+                        $(div).hide();
+                        arrow = $(document.createElement('div')).addClass('arrow').text('+');
+                    } else {
+                        arrow = $(document.createElement('div')).addClass('arrow').text('-');
+                    }
+                    // if the related content is a tutorial, add the tutorial to the related content section
+                    $(arrow).css('cursor', 'pointer').click(arrowClick);
+                    $(div_main).prepend(arrow);                    
+                    $("#leftNav-toc ul.hol-Nav-list:first-of-type").append(related_li[i]);
+         
+                    // for each related workshop
+                    let related_workshops = {};
+                    let tags = manifestFileContent.show_related[i]['tags'];
+                    /**
+                     * @param {string} related_content - object containing the related content
+                     *  @param {string} tags - array of tags
+                     *  @param {string} related_workshops - object containing the related workshops
+                     *  @param {string} j - index of the related workshop
+                     *  @param {string} filtered_workshops - object containing the filtered workshops
+                     */
+                    $(tags).each(function(_, tag) {                    
+                        related_workshops = {...related_workshops, ...related_content[tag]};
+                    });                                              
+                    // filter out the current workshop and any workshops that are already in the related content section
+                    let filtered_workshops = {};
+                    // filter out the current workshop and any workshops that are already in the related content section
+                    for (let j = 0; j &lt; Object.keys(related_workshops).length; j++) {
+                        if (manifestFileContent.workshoptitle.toLowerCase() === Object.keys(related_workshops)[j].toLowerCase()) continue;                        
+                        if ($.inArray(Object.keys(related_workshops)[j].toLowerCase(), tut_titles) != -1) continue;
+
+                        filtered_workshops[Object.keys(related_workshops)[j]] = related_workshops[Object.keys(related_workshops)[j]];                        
+                    }                                    
+                    // randomly select 5 workshops from the filtered list
+                    let filter = Object.keys(filtered_workshops).sort(() => Math.random() - Math.random()).slice(0, max_related);
+                    // for each workshop, add it to the related content section
+                    /**
+                     * @param {string} filter - array of filtered workshops
+                     *  @param {string} ul - ul element
+                     *  @param {string} li - li element
+                     *  @param {string} f - index of the filtered workshop
+                     */
+                    $(filter).each(function(_, f) {
+                        let ul = document.createElement('ul');
+                        let li = $(document.createElement('li')).addClass('toc-item').text(f);                        
+                        $(li).wrapInner('&lt;a href="' + filtered_workshops[f] + '">&lt;/a>');
+                        $(ul).append(li);
+                        $(ul).appendTo(div);     
+                    });
+                });                       
+            }                        
+        }      
+    }
+    
+  /**
+   * 
+   * @param {*} manifestFileContent  - object containing the manifest file content
+   */  
+    let prepareToc = function(manifestFileContent) { // this function prepares the table of contents
+        let h2_regex = new RegExp(/^##\s(.+)*/gm); //regex to find all h2s
+        let h2s_list = []; //list of h2s
+        let matches; //variable to store the matches of the regex
+        /**
+         * @param {string} manifestFileContent - object containing the manifest file content
+         */
+        $(manifestFileContent.tutorials).each(function(i, tutorial) { //for each tutorial in the manifest
+            let ul; //variable to store the ul element
+            let div = document.createElement('div'); //creating a div element
+            $(div).attr('id', 'toc' + i).addClass('toc'); //adding id and class to the div element
+            /**
+             * @param {string} manifestFileContent - object containing the manifest file content
+             */
+            $.get(tutorial.filename, function(markdownContent) { //reading MD file in the manifest and storing content in markdownContent variable
+                if (tutorial.filename == 'preview' &amp;&amp; markdownContent == "None") {
+                    markdownContent = window.localStorage.getItem("mdValue");
+                }
+                markdownContent = include(markdownContent, manifestFileContent.include);
+                markdownContent = singlesource(markdownContent, tutorial.type);
+
+                do {
+                    matches = h2_regex.exec(markdownContent); //finding all h2s in the MD file
+
+                    if (matches !== null) { //if there are h2s in the MD file
+                        ul = document.createElement('ul'); //creating a ul element
+                        $(ul).append($(document.createElement('li')).addClass('toc-item').text(matches[1].replace(/\**/g, '').replace(/\##/g, '')).attr('data-unique', alphaNumOnly(matches[1])));
+                        $(ul).click(function() { //adding click event to the ul element
+                            if ($(this).parent().parent().parent().hasClass('selected')) { //if the parent of the ul element is selected
+                                location.hash = alphaNumOnly($(this).text()); //set the hash to the text of the ul element
+                                expandSectionBasedOnHash($(this).find('li').attr('data-unique')); //expand the section based on the hash
+                            } else {
+                                changeTutorial(getMDFileName(tutorial.filename), alphaNumOnly($(this).text())); //change the tutorial to the one in the manifest
+                            }
+
+                        });
+
+                        // fix added for LLAPEX-400
+                        /**
+                         * @param {string} ul - ul element
+                         */  
+                        $(ul).each(function() {
+                            if(tutorial !== selectTutorial(manifestFileContent)) {
+                                let li = $(this).find('li')[0];                            
+                                $(li).wrapInner('&lt;a href="' + unescape(setParam(window.location.href, queryParam, getMDFileName(tutorial.filename))) + '#' + $(li).attr('data-unique') + '">&lt;/a>');
+                            }            
+                        });
+                        $(ul).appendTo(div);
+                    }
+                } while (matches);
+                
+            });
+            
+            $('.hol-Nav-list li')[i].append(div);
+        });                
+          /**
+           * @param {string} manifestFileContent - object containing the manifest file content 
+        */
+        setTimeout(function() { //wait for 1 second
+            let anchorItem = $('.selected li[data-unique="' + location.hash.slice(1) + '"]'); //get the li element with the hash
+            if (anchorItem.length !== 0) // if the li element exists
+                $(anchorItem)[0].click(); //click the li element
+        }, 1000);                
+        $(".hol-Nav-list>li").wrapInner("&lt;div>&lt;/div>") //wrap the li element in a div element
+        
+        $(".hol-Nav-list>li>div").prepend($(document.createElement('div')).addClass('arrow').text('+')); //add a + sign to the div element
+        
+        $('.hol-Nav-list > li > div .arrow').click(arrowClick); // add click event to the + sign
+
+        $('.selected div.arrow').text('-'); //change the + sign to a - sign
+        $('.hol-Nav-list > li:not(.selected) .toc').hide(); // hide the toc of the unselected tutorials
+                            
+    }
+    /**
+     *  @param {string} manifestFileContent - object containing the manifest file content
+     */
+    let toggleTutorialNav = function() { //this function toggles the tutorial navigation
+        let nav_param = getParam(nav_param_name); //get the nav_param_name from the url
+
+        if (!nav_param || nav_param === 'open') { //if nav_param is not set or is set to open
+            $('.hol-Nav-list > li:not(.selected)').attr('tabindex', '0'); //set the tabindex of the unselected li elements to 0
+            $('#leftNav-toc, #leftNav, #contentBox').addClass('open').removeClass('close'); //add the open class to the leftNav-toc, leftNav and contentBox elements and remove the close class
+        } else if (nav_param === 'close') { //if nav_param is set to close
+            $('.hol-Nav-list > li:not(.selected)').attr('tabindex', '-1'); //set the tabindex of the unselected li elements to -1
+            $('#leftNav-toc, #leftNav, #contentBox').addClass('close').removeClass('open'); //add the close class to the leftNav-toc, leftNav and contentBox elements and remove the open class
+        }
+        setTimeout(function() { //wait for 1 second
+            $(window).scroll(); //scroll the window
+        }, 100); 
+    }
+
+
+    /* The following functions creates and populates the tutorial navigation.*/
+    /**
+     * 
+     * @param {*} manifestFileContent  - object containing the manifest file content
+     * @returns {string} - returns the MD file name
+     */
+    let setupTutorialNav = function(manifestFileContent) {
+        let div = $(document.createElement('div')).attr('id', 'leftNav-toc');
+        let ul = $(document.createElement('ul')).addClass('hol-Nav-list');
+
+        $(manifestFileContent.tutorials).each(function(i, tutorial) {
+            let file_name = getMDFileName(tutorial.filename);
+
+            $(document.createElement('li')).each(function() {
+                $(this).click(function(e) {
+                    if (!$(e.target).hasClass('arrow') &amp;&amp; !$(e.target).hasClass('toc-item') &amp;&amp; !$(e.target).hasClass('toc-item active')) {
+                        if ($(e.target).parent().parent().hasClass('selected') || $(e.target).hasClass('selected')) {
+                            try {
+                                $('.selected .arrow').click();
+                            } catch (e) {}
+                        } else {
+                            changeTutorial(file_name);
+                        }
+                    }
+                });
+                $(this).attr('id', getLabNavID(file_name));
+                //The title specified in the manifest appears in the side nav as navigation
+                // $(this).text(tutorial.title).wrapInner("&lt;span>&lt;/span>");
+                $(this).text(tutorial.title).wrapInner("&lt;a href=\"" + unescape(setParam(window.location.href, queryParam, getMDFileName(tutorial.filename))) + "\">&lt;div>&lt;/div>&lt;/a>");
+                $(this).appendTo(ul);
+
+                /* for accessibility */
+                $(this).keydown(function(e) {
+                    if (e.keyCode === 13 || e.keyCode === 32) { //means enter and space
+                        e.preventDefault();
+                        changeTutorial(file_name);
+                    }
+                });
+                /* accessibility code ends here */
+            });
+        });
+
+        $(ul).appendTo(div);
+        $(div).appendTo('#leftNav');        
+        return selectTutorial(manifestFileContent);
+    }
+    /**
+     * 
+     * @param {*} file_name  - object containing the manifest file content
+     * @returns {string} - returns the MD file name
+     */
+    let getMDFileName = function(file_name) { // get the file name of the tutorial
+        return file_name.split('/')[file_name.split('/').length - 1].replace('.md', ''); 
+    }
+
+    /**
+     * 
+     * @param {*} file_name 
+     * @param {*} prefix  
+     * @returns {string} - returns the ID of the tutorial
+     */
+    let getLabNavID = function(file_name, prefix = 'tut-') { //get the ID of the tutorial
+        return prefix + getMDFileName(file_name.toString()).replace(/[\(\)]+?/g, '').replace('.md', ''); //remove the () from the file name
+    }
+
+    // The following function is used to change the tutorial
+    /**
+     * 
+     * @param {*} manifestFileContent 
+     * @param {*} position
+     * @returns {string} - returns the MD file name
+     */
+    let selectTutorial = function(manifestFileContent, position = 0) {
+        $('#' + getLabNavID(getParam(queryParam))).addClass('selected'); //add class selected to the tutorial that is selected by using the ID
+        $('.selected').find('a').contents().unwrap(); // remove hyperlink from "selected" lab
+        $('.selected').unbind('keydown');
+
+        if (position === -2) return manifestFileContent.tutorials[0]; //if position is -2, return the first tutorial
+        if (position === 2) return manifestFileContent.tutorials[manifestFileContent.tutorials.length - 1]; //if position is 2, return the last tutorial
+
+        //find which tutorial in the manifest file is selected
+        for (var i = 0; i &lt; manifestFileContent.tutorials.length; i++) {
+            if (getParam(queryParam) === getMDFileName(manifestFileContent.tutorials[i].filename))
+                return manifestFileContent.tutorials[i + position];
+        }
+
+        // if old link style URL is used (for example: ?labs=short-tutorial-title)
+        // remove this condition after old style link is removed
+        for (var i = 0; i &lt; manifestFileContent.tutorials.length; i++) {
+            if (getParam(queryParam) === createShortNameFromTitle(manifestFileContent.tutorials[i].title)) {
+                changeTutorial(getMDFileName(manifestFileContent.tutorials[i].filename), window.location.hash.substr(1));
+                return;
+            }
+        }
+        // until here
+
+        //if no title has selected class, selected class is added to the first class
+        $('.hol-Nav-list').find('li:eq(0)').addClass("selected");
+        return manifestFileContent.tutorials[0 + position]; //return the first tutorial is no tutorial is matches
+    }
+
+    /* Setup toc navigation and tocify */
+    let setupTocNav = function() { //setup the toc navigation and tocify ()
+        $(".hol-Nav-list .selected").wrapInner("&lt;div tabindex='0'>&lt;/div>") //wrap the selected class in a div
+        $(".hol-Nav-list .selected div").prepend($(document.createElement('div')).addClass('arrow').text('+')); //add a div with class arrow and text + to the selected class
+        $(".hol-Nav-list .selected").unbind('click'); //unbind the click event from the selected class
+
+        $(".hol-Nav-list .selected > div").click(function(e) { //when the selected class is clicked
+            if ($('.selected div.arrow').text() === '-') { //if the text of the arrow is -
+                $('#toc').fadeOut('fast'); //fade out the toc
+                $('.selected div.arrow').text('+'); //change the text of the arrow to +
+            } else { //if the text of the arrow is +
+                $('#toc').fadeIn('fast'); //fade in the toc
+                $('.selected div.arrow').text('-'); //change the text of the arrow to -
+            }
+        });
+
+        /* for accessibility */
+        $(".hol-Nav-list .selected > div").keydown(function(e) {
+            if (e.keyCode === 13 || e.keyCode === 32) { //means enter and space
+                e.preventDefault();
+                $(this).click()
+            }
+        });
+        /* accessibility code ends here */
+
+        $(window).scroll();
+        $('#toc').appendTo(".hol-Nav-list .selected");
+        $('.selected div.arrow').click();
+    }
+
+    /* The following function performs the event that must happen when the lab links in the navigation is clicked */
+    /**
+     * 
+     * @param {*} file_name 
+     * @param {*} anchor   
+     */
+    let changeTutorial = function(file_name, anchor = "") {
+        if (anchor !== "") anchor = '#' + anchor;
+        location.href = unescape(setParam(window.location.href, queryParam, file_name) + anchor);
+    }
+
+    /*the following function changes the path of images as per the path of the MD file.
+    This ensures that the images are picked up from the same location as the MD file.
+    The manifest file can be in any location.*/
+    /**
+     * 
+     * @param {*} markdownContent 
+     * @param {*} myUrl 
+     * @returns {string} - returns the markdown content with the image path changed
+     */
+    let addPathToImageSrc = function(markdownContent, myUrl) {
+            let imagesRegExp = new RegExp(/!\[.*?\]\((.*?)\)/g);
+            let contentToReplace = []; // content that needs to be replaced
+            let matches;
+
+            myUrl = myUrl.substring(0, myUrl.lastIndexOf('/') + 1); //removing filename from the url
+
+            do {
+                matches = imagesRegExp.exec(markdownContent);
+                if (matches === null) {
+                    $(contentToReplace).each(function(index, value) {
+                        markdownContent = markdownContent.replace(value.replace, value.with);
+                    });
+                    return markdownContent;
+                }
+
+                // if (myUrl.indexOf("/") !== 1) {
+                matches[1] = matches[1].split(' ')[0];                
+                if (matches[1].indexOf("http") === -1 &amp;&amp; matches[1][0] !== "/") {                    
+                    contentToReplace.push({
+                        "replace": '(' + matches[1],
+                        /* "with": '(' + myUrl + matches[1] TMM: changed 10/6/20*/
+                        "with": '(' + myUrl + matches[1].trim()
+                    });
+                }
+                // }
+            } while (matches);
+        }
+        /* The following function adds the h1 title before the container div. It picks up the h1 value from the MD file. */
+        /**
+         * 
+         * @param {*} articleElement 
+         * @returns {object} - returns the article element with the h1 title added
+         */
+    let updateH1Title = function(articleElement) {
+            $('#tutorial-title').text("\t\t›\t\t" + $(articleElement).find('h1').text());
+            // $(articleElement).find('h1').remove(); //Removing h1 from the articleElement as it has been added to the HTML file already
+            return articleElement;
+        }
+        /* This function picks up the entire converted content in HTML, and break them into sections. */
+        /**
+         * 
+         * @param {*} articleElement 
+         * @returns {object} - returns the article element with the sections wrapped
+         */
+    let wrapSectionTag = function(articleElement) {
+            $(articleElement).find('h2').each(function() {
+                $(this).nextUntil('h2').andSelf().wrapAll('&lt;section>&lt;/section>');
+            });
+            return articleElement;
+        }
+        /* Wrapping all images in the article element with Title in the MD, with figure tags, and adding figcaption dynamically.
+        The figcaption is in the format Description of illustration [filename].
+        The image description files must be added inside the files folder in the same location as the MD file.*/
+       
+        /**
+         * 
+         * @param {*} articleElement 
+         * @returns {object} - returns the article element with the images wrapped
+         */
+    let wrapImgWithFigure = function(articleElement) {
+            $(articleElement).find("img").on('load', function() {
+                if ($(this)[0].width > 100 || $(this)[0].height > 100 || $(this).attr("title") !== undefined) { // only images with title or width or height > 100 get wrapped (DBDOC-2397)
+                    $(this).wrap("&lt;figure>&lt;/figure>"); //wrapping image tags with figure tags
+                   
+                }
+
+                //Add role attribute to all images that do not have an alt attribute
+                /** */
+                if ($(this).attr("alt").length &lt;1 || (!$(this).attr("alt")) || $(this).attr("alt") == '' || $(this).attr("alt") == undefined || $(this).attr("alt") == 0) {
+                     // $(this).attr("role","presentation"); ALternative solution
+                     $(this).attr("alt","The content is described above.") ;
+                }
+
+            });
+            return articleElement;
+        }
+        /*the following function changes the path of the HREFs based on the absolute path of the MD file.
+        This ensures that the files are linked correctly from the same location as the MD file.
+        The manifest file can be in any location.*/
+        /**
+         * 
+         * @param {*} articleElement 
+         * @param {*} myUrl 
+         * @returns {object} - returns the article element with the hrefs changed
+         */
+    let addPathToAllRelativeHref = function(articleElement, myUrl) {
+            if (myUrl.indexOf("/") !== -1) {
+                myUrl = myUrl.replace(/\/[^\/]+$/, "/"); //removing filename from the url
+                $(articleElement).find('a').each(function() {
+                    if ($(this).attr("href").indexOf("http") === -1 &amp;&amp; $(this).attr("href")[0] !== "/" &amp;&amp; $(this).attr("href").indexOf("?") !== 0 &amp;&amp; $(this).attr("href").indexOf("#") !== 0) {
+                        $(this).attr("href", myUrl + $(this).attr("href"));
+                    }
+                });
+            }
+            return articleElement;
+        }
+        /* the following function makes anchor links work by adding an event to all href="#...." */
+        /**
+         * 
+         * @param {*} articleElement 
+         * @returns {object} - returns the article element with the hrefs changed
+         */
+    let makeAnchorLinksWork = function(articleElement) {
+            $(articleElement).find('a[href^="#"]').each(function() {
+                let href = $(this).attr('href');
+                if (href !== "#") { //eliminating all plain # links
+                    $(this).click(function() {
+                        expandSectionBasedOnHash(href.split('#')[1]);
+                    });
+                }
+            });
+            return articleElement;
+        }
+        /*the following function sets target for all HREFs to _blank */
+        /**
+         * 
+         * @param {*} articleElement 
+         * @returns {object} - returns the article element with the hrefs changed
+         */
+    let addTargetBlank = function(articleElement) {
+            $(articleElement).find('a').each(function() {
+                if ($(this).attr('href').indexOf("http") === 0 &amp;&amp; $(this).attr('href').indexOf("&amp;type=") == -1) //ignoring # hrefs
+                    $(this).attr('target', '_blank'); //setting target for ahrefs to _blank
+            });
+            return articleElement;
+        }
+        /* Sets the title, contentid, description, partnumber, and publisheddate attributes in the HTML page.
+        The content is picked up from the manifest file entry*/
+        /**
+         * 
+         * @param {*} tutorialEntryInManifest 
+         * @param {*} workshoptitle 
+         */
+    let updateHeadContent = function(tutorialEntryInManifest, workshoptitle) {
+        (workshoptitle !== undefined) ?
+        document.title = workshoptitle + " | " + tutorialEntryInManifest.title:
+            document.title = tutorialEntryInManifest.title;
+
+        const metaProperties = [{
+            name: "contentid",
+            content: tutorialEntryInManifest.contentid
+        }, {
+            name: "description",
+            content: tutorialEntryInManifest.description
+        }, {
+            name: "partnumber",
+            content: tutorialEntryInManifest.partnumber
+        }, {
+            name: "publisheddate",
+            content: tutorialEntryInManifest.publisheddate
+        }];
+        $(metaProperties).each(function(i, metaProp) {
+            if (metaProp.content) {
+                let metaTag = document.createElement('meta');
+                $(metaTag).attr(metaProp).prependTo('head');
+            }
+        });
+    }
+
+    /* Add the Go to forum link in the footer (DBDOC-2459 and DBDOC-2496) */
+    /**
+     * 
+     * @param {*} support  - the support URL from the manifest file
+     */
+    let addGoToForumLink = function(support) {
+        const support_text = "Go to forum";
+        if (support !== undefined) {
+            // the Need Help? URL is taken from the manifest file (key is support)
+            let need_help = $(document.createElement('li')).append($(document.createElement('a')).attr({ 'href': support, 'target': '_blank' }).text(support_text));
+            $('.footer-links').append(need_help);
+        }
+    }
+
+    /* Add the Need Help link in the header (DBDOC-2459 and DBDOC-2496) */
+    /**
+     * 
+     * @param {*} help  - the help URL from the manifest file
+     * @param {*} wtitle  - the workshop title from the manifest file
+     */
+    let addNeedHelpLink = function(help, wtitle) {
+        const subject = "Question about workshop: " + wtitle;
+        const help_text = "Need help? Send us an email.";
+        if (help !== undefined) {
+            // the Need Help? URL is taken from the manifest file (key is help)
+            let need_help = $(document.createElement('a')).attr({ 'href': 'mailto:' + help + '?subject=' + subject, 'title': help_text, 'id': 'need_help', 'tabindex': '0' }).text('?');
+            $('header .hol-Header-wrap').append(need_help);
+
+            // let need_help_div = $(document.createElement('div')).attr({ 'href': 'mailto:' + help + '?subject=' + subject, 'title': help_text, 'id': 'need_help', 'tabindex': '0' }).text('?');
+            // $('div#container').append(need_help_div);
+        }
+    }
+
+    /* Add the Social Media link in the header */
+    // let addSocialMediaLink = function(help, wtitle) {   
+    //     let url_to_share = (window.location != window.parent.location) ? document.referrer: document.location.href; 
+    //     console.log(url_to_share);
+    //     console.log(window.parent.location);
+    //     // Share Workshop on Facebook
+    //     let fb = $(document.createElement('a')).attr({ 
+    //         'href': 'https://facebook.com', 
+    //         'title': "Share on Facebook", 
+    //         'target': '_blank', 
+    //         'id': 'need_help', 
+    //         'tabindex': '1' 
+    //     }).text('F');        
+    //     $('header .hol-Header-wrap').append(fb);
+
+    //     let linkedin = $(document.createElement('a')).attr({ 
+    //         'href': 'https://linkedin.com', 
+    //         'title': "Share on LinkedIn", 
+    //         'target': '_blank', 
+    //         'id': 'need_help', 
+    //         'tabindex': '2' 
+    //     }).text('I');        
+    //     $('header .hol-Header-wrap').append(linkedin);
+
+    //     let twitter = $(document.createElement('a')).attr({ 
+    //         'href': 'https://twitter.com', 
+    //         'title': "Share on Twitter", 
+    //         'target': '_blank', 
+    //         'id': 'need_help', 
+    //         'tabindex': '2' 
+    //     }).text('T');        
+    //     $('header .hol-Header-wrap').append(twitter);
+    // }
+
+    /* Enables collapse/expand feature for the steps */
+    /**
+     * 
+     * @param {*} manifestFileContent 
+     * @param {*} articleElement 
+     */
+    let setupContentNav = function(manifestFileContent, articleElement) {        
+            //adds the expand collapse button before the second h2 element
+            $("#module-content h2:eq(1)")
+                .before('&lt;button id="btn_toggle" class="hol-ToggleRegions plus">' + expandText + '&lt;/button>')
+                .prev().on('click', function(e) {
+                    ($(this).text() === expandText) ? expandSection($("#module-content h2:not(:eq(0))"), "show"): collapseSection($("#module-content h2:not(:eq(0))"), "hide");
+                    changeButtonState(); //enables the expand all parts and collapse all parts button
+
+                });
+            //enables the feature that allows expand collapse of sections
+            
+           
+            $("#module-content h2:not(:eq(0))").click(function(e) {
+                ($(this).hasClass('plus')) ? expandSection(this, "fade"): collapseSection(this, "fade");
+                changeButtonState();
+            });
+            /* for accessibility */
+            $("#module-content h2:not(:eq(0))").attr('tabindex', '0');
+            $('#module-content h2:not(:eq(0))').keydown(function(e) {
+                if (e.keyCode === 13 || e.keyCode === 32) { //means enter and space
+                    e.preventDefault();
+                    if ($(this).hasClass('plus'))
+                        expandSection($(this), "fade");
+                    else
+                        collapseSection($(this), "fade");
+                }
+            });
+            /* accessibility code ends here */
+
+            // code to hide expand/collapse button
+            let hide_expand_button = selectTutorial(manifestFileContent).hide_button || manifestFileContent.hide_button;                
+            if (hide_expand_button ==  "true" || hide_expand_button == "yes") {
+                $('#btn_toggle').hide();
+            }
+
+            window.scrollTo(0, 0);
+        }
+        /* Expands the section */
+        /**
+         * 
+         * @param {*} anchorElement  
+         * @param {*} effect 
+         */
+    let expandSection = function(anchorElement, effect) {
+            if (effect === "show") {
+                $(anchorElement).nextUntil("#module-content h1, #module-content h2").show('fast', function() {
+                    $(window).scroll();
+                }); //expand the section incase it is collapsed
+            } else if (effect === "fade") {
+                $(anchorElement).nextUntil("#module-content h1, #module-content h2").fadeIn('fast', function() {
+                    $(window).scroll();
+                });
+            }
+            $(anchorElement).addClass("minus");
+            $(anchorElement).removeClass("plus");
+        }
+        /* Collapses the section */
+        /**
+         * 
+         * @param {*} anchorElement 
+         * @param {*} effect 
+         */
+    let collapseSection = function(anchorElement, effect) {
+            if (effect === "hide") {
+                $(anchorElement).nextUntil("#module-content h1, #module-content h2").hide('fast', function() {
+                    $(window).scroll();
+                }); //collapses the section incase it is expanded
+            } else if (effect === "fade") {
+                $(anchorElement).nextUntil("#module-content h1, #module-content h2").fadeOut('fast', function() {
+                    $(window).scroll();
+                });
+            } else if (effect == "none") {
+                $(anchorElement).nextUntil("#module-content h1, #module-content h2").attr('style', 'display:none;');
+            }
+            $(anchorElement).addClass('plus');
+            $(anchorElement).removeClass('minus');
+        }
+        /* Detects the state of the collapse/expand button and changes it if required */
+       
+    /**
+     * @type {string}
+     */
+    let changeButtonState = function() {
+            if ($("#module-content h2.minus").length &lt;= $("#module-content h2.plus").length) { //if all sections are expanded, it changes text to expandText
+                $('#btn_toggle').text(expandText);
+                $("#btn_toggle").addClass('plus');
+                $("#btn_toggle").removeClass('minus');
+            } else {
+                $('#btn_toggle').text(collapseText);
+                $("#btn_toggle").addClass('minus');
+                $("#btn_toggle").removeClass('plus');
+            }
+        }
+        /* Expands section on page load based on the hash. Expands section when the leftnav item is clicked */
+        /**
+         * @type {string}
+         * @param {*} itemName 
+         */
+    let expandSectionBasedOnHash = function(itemName) {
+        let anchorElement = $('div[name="' + itemName + '"]').next(); //anchor element is always the next of div (eg. h2 or h3)
+        if ($(anchorElement).hasClass('hol-ToggleRegions')) //if the next element is the collpase/expand button
+            anchorElement = $(anchorElement).next();
+        try {
+            if (anchorElement[0].tagName !== 'H2') {
+                anchorElement = $(anchorElement).siblings('h2');
+            }
+
+            if ($(anchorElement).hasClass('minus') || $(anchorElement).hasClass('plus'))
+                expandSection(anchorElement, "fade");
+            $(anchorElement)[0].scrollIntoView();
+            window.scrollTo(0, window.scrollY - $('.hol-Header').height());
+            changeButtonState();
+        } catch (e) {};
+    }
+
+    // this function higlights the text when the copy button is clicked
+    // let selectElement = function(elements) {
+    //     let sel, range, el = elements;
+    //     if (window.getSelection &amp;&amp; document.createRange) { //Browser compatibility
+    //         sel = window.getSelection();
+    //         window.setTimeout(function(){
+    //             range = document.createRange(); //range object
+    //             range.selectNodeContents(el); //sets Range
+    //             sel.removeAllRanges(); //remove all ranges from selection
+    //             sel.addRange(range); //add Range to a Selection.
+    //         }, 1);
+
+    //         window.setTimeout(function() {
+    //             sel.removeAllRanges();
+    //         }, 4000);
+    //     }
+    // }
+
+    // this function higlights the text when the copy button is clicked
+    /**
+     * @type {HTMLElement}
+     * @param {*} elements 
+     */
+    let selectElement = function(elements) {
+        $(elements).addClass('code-highlight');
+
+        window.setTimeout(function() {
+            $(elements).removeClass('code-highlight');
+        }, 2000);
+    }
+
+    /* adds code copy functionality in codeblocks. The code that needs to be copied needs to be wrapped in &lt;copy> &lt;/copy> tag */
+    /**
+     * 
+     * @param {*} articleElement 
+     * @returns {void}
+     */
+    let allowCodeCopy = function(articleElement) {
+            $(articleElement).find('pre code').each(function() {
+                if ($(this).text().indexOf('&lt;copy>') >= 0) {
+                    let code = $(document.createElement('code')).html($(this).text());
+                    $(this).html($(code).html());
+                }
+
+                if ($(this).has('copy').length >= 1) {
+                    $(this).find('copy').contents().unwrap().wrap('&lt;span class="copy-code">');
+                    $(this).before('&lt;button class="copy-button" title="Copy text to clipboard">' + copyButtonText + '&lt;/button>');
+                }
+            });
+            $(articleElement).find('.copy-button').click(function() {
+                selectElement($(this).next().find('.copy-code'));
+
+                let copyText = $(this).next().find('.copy-code').map(function() {
+                    return $(this).text().trim();
+                }).get().join('\n');
+                let dummy = $('&lt;textarea>').val(copyText).appendTo(this).select();
+                document.execCommand('copy');
+                $(dummy).remove();
+                $(this).parent().animate({
+                    opacity: 0.2
+                }).animate({
+                    opacity: 1
+                });
+            });
+            return articleElement;
+        }
+
+        /* adds iframe to YouTube videos so that it renders in the same page.
+        The MD code should be in the format [](youtube:&lt;enter_video_id>) for it to render as iframe. */
+        /**
+         * @type {string}
+         * @param {*} articleElement 
+         * @returns {void} - articleElement
+         */
+        let renderYouTubeVideos = function(articleElement) {
+            $(articleElement).find('a[href^="youtube:"]').each(function() {
+                $(this).after('&lt;div class="video-container' + '-' + $(this).attr("href").split(":")[2] + '">&lt;iframe title="video iframe" src="https://www.youtube.com/embed/' + $(this).attr('href').split(":")[1] + '" frameborder="0" allowfullscreen>&lt;/div>');
+                $(this).remove();
+            });
+            return articleElement;
+        }
+
+        /* adds iframe to Oracle Video Hub videos so that it renders in the same page.
+        The MD code should be in the format [](videohub:&lt;enter_video_id>) for it to render as iframe. */
+        /**
+         * 
+         * @param {*} articleElement 
+         * @returns {void} - articleElement
+         */
+    let renderVideoHubVideos = function(articleElement) {
+            $(articleElement).find('a[href^="videohub:"]').each(function() {
+                $(this).after('&lt;div class="video-container' + '-' + $(this).attr("href").split(":")[2] + '">&lt;iframe id="kaltura_player" title="video iframe" src="https://cdnapisec.kaltura.com/p/2171811/sp/217181100/embedIframeJs/uiconf_id/35965902/partner_id/2171811?iframeembed=true&amp;playerId=kaltura_player&amp;entry_id=' +  $(this).attr('href').split(":")[1] + '&amp;flashvars[streamerType]=auto" frameborder="0" allowfullscreen>&lt;/div>');
+                $(this).remove();
+            });
+            return articleElement;
+        }
+
+        /* remove all content that is not of type specified in the manifest file. Then remove all if tags.*/
+        /**
+         * @type {RegExp}
+         * @param {*} markdownContent 
+         * @param {*} type 
+         * @returns {string} - markdownContent
+         */
+    let singlesource = function(markdownContent, type) {
+            let ifTagRegExp = new RegExp(/&lt;\s*if type="([^>]*)">([\s\S|\n]*?)&lt;\/\s*if>/gm);
+            let contentToReplace = []; // content that needs to be replaced
+
+            if (getParam("type") !== false) {
+                type = getParam("type");
+            } else if ($.type(type) == 'object') {
+                type = Object.keys(type)[0];
+            }
+
+            if ($.type(type) !== 'array')
+                type = Array(type);
+
+            let matches;
+            do {
+                matches = ifTagRegExp.exec(markdownContent);
+                if (matches === null) {
+                    $(contentToReplace).each(function(index, value) {
+                        markdownContent = markdownContent.replace(value.replace, value.with);
+                    });
+                    return markdownContent;
+                }
+                // convert if type to array
+                let all_types = matches[1].split(' '),
+                    matchFound = false;
+
+                for (let i = 0; i &lt; all_types.length &amp;&amp; !matchFound; i++) {
+                    if ($.inArray(all_types[i], type) >= 0) { // check if type specified matches content
+                        matchFound = true;
+                    }
+                }
+
+                // replace with blank if type doesn't match
+                // replace with text without if tag (if any if type matches)
+                (!matchFound) ?
+                contentToReplace.push({ "replace": matches[0], "with": '' }):
+                    contentToReplace.push({ "replace": matches[0], "with": matches[2] });
+
+            } while (matches);
+        }
+        /* converts &lt; > symbols inside the copy tag to &amp;lt; and &amp;gt; */
+        /**
+         * 
+         * @param {*} markdownContent 
+         * @returns {string} - markdownContent
+         */
+    let convertBracketInsideCopyCode = function(markdownContent) {
+            let copyRegExp = new RegExp(/&lt;copy>([\s\S|\n]*?)&lt;\/copy>/gm);
+
+            markdownContent = markdownContent.replace(copyRegExp, function(code) {
+                code = code.replace('&lt;copy>', '');
+                code = code.replace('&lt;/copy>', '');
+                code = code.replace(/&lt;/g, '&amp;lt;');
+                code = code.replace(/>/g, '&amp;gt;');
+                return '&lt;copy>' + code.trim() + '&lt;/copy>';
+            });
+
+            return markdownContent;
+        }
+        /* injects tracking code into links specified in the utmParams variable */
+        /**
+         * 
+         * @param {*} articleElement 
+         * @returns {void} - articleElement
+         */
+    let injectUtmParams = function(articleElement) {
+            let currentUrl = window.location.href;
+            $(utmParams).each(function(index, item) {
+                let inParamValue = getParam(item.inParam);
+                if (inParamValue) {
+                    $(articleElement).find('a[href*="' + item.url + '"]').each(function() {
+                        let targetUrl = $(this).attr('href');
+                        $(this).attr('href', unescape(setParam(targetUrl, item.outParam, inParamValue)));
+                    });
+                }
+            });
+
+            /* hack for manual links like this ?lab=xx. Should be removed later. */
+            $(utmParams).each(function(index, item) {
+                let inParamValue = getParam(item.inParam);
+                if (inParamValue) {
+                    $(articleElement).find('a[href*="?' + queryParam + '="]').each(function() {
+                        let targetUrl = $(this).attr('href') + '&amp;' + item.inParam + '=' + inParamValue;
+                        $(this).attr('href', unescape(targetUrl));
+                    });
+                }
+            });
+            /* remove till here */
+            return articleElement;
+        }
+        /* set the query parameter value  */
+        /**
+         * 
+         * @param {*} url 
+         * @param {*} paramName 
+         * @param {*} paramValue 
+         * @returns {string} - url
+         */
+    let setParam = function(url, paramName, paramValue) {
+            let onlyUrl = (url.split('?')[0]).split('#')[0];
+            let params = url.replace(onlyUrl, '').split('#')[0];
+            let hashAnchors = url.replace(onlyUrl + params, '');
+            hashAnchors = "";
+
+            let existingParamValue = getParam(paramName);
+            if (existingParamValue) {
+                return onlyUrl + params.replace(paramName + '=' + existingParamValue, paramName + '=' + paramValue) + hashAnchors;
+            } else {
+                if (params.length === 0 || params.length === 1) {
+                    return onlyUrl + '?' + paramName + '=' + paramValue + hashAnchors;
+                }
+                return onlyUrl + params + '&amp;' + paramName + '=' + paramValue + hashAnchors;
+            }
+        }
+        /* get the query parameter value */
+        /**
+         * 
+         * @param {*} paramName 
+         * @returns {string} - paramValue
+         */
+    let getParam = function(paramName) {
+            let params = window.location.search.substring(1).split('&amp;');
+            for (var i = 0; i &lt; params.length; i++) {
+                if (params[i].split('=')[0] == paramName) {
+                    //Fix for LLAPEX-595 to remove characters only before the first '='
+                    return params[i].split(/=(.*)/s)[1];
+                    //return params[i].split('=')[1];
+                }
+            }
+            return false;
+        }
+        /* The following function creates shortname from title */
+    /**
+     * 
+     * @param {*} title 
+     * @returns {string} - shortname
+     */
+    let createShortNameFromTitle = function(title) {
+        if (!title) {
+            console.log("The title in the manifest file cannot be blank!");
+            return "ErrorTitle";
+        }
+        const removeFromTitle = ["-a-", "-in-", "-of-", "-the-", "-to-", "-an-", "-is-", "-your-", "-you-", "-and-", "-from-", "-with-"];
+        const folderNameRestriction = ["&lt;", ">", ":", "\"", "/", "\\\\", "|", "\\?", "\\*", "&amp;", "\\.", ","];
+        let shortname = title.toLowerCase().replace(/ /g, '-').trim().substr(0, 50);
+        $.each(folderNameRestriction, function(i, value) {
+            shortname = shortname.replace(new RegExp(value, 'g'), '');
+        });
+        $.each(removeFromTitle, function(i, value) {
+            shortname = shortname.replace(new RegExp(value, 'g'), '-');
+        });
+        if (shortname.length > 40) {
+            shortname = shortname.substr(0, shortname.lastIndexOf('-'));
+        }
+        return shortname;
+    }
+
+    /**
+     * 
+     * @param {*} articleElement 
+     * @param {*} manifestFileContent 
+     * @returns  {void} - articleElement
+     */
+    let updateOpenCloseButtonText = function(articleElement, manifestFileContent) {      // update the open/close button text   
+        let task_type = selectTutorial(manifestFileContent).task_type || manifestFileContent.task_type; // check if task_type is specified in the manifest file        
+        if (task_type) {
+            const default_task_type = "Tasks"; // default task type
+            task_type = task_type.trim(); // trim the task type
+            collapseText = collapseText.replace(default_task_type, task_type); // replace the default task type with the specified task type
+            expandText = expandText.replace(default_task_type, task_type);       // replace the default task type with the specified task type      
+        }    
+        return articleElement;
+    }
+    /**
+     * 
+     * @param {*} articleElement 
+     * @param {*} manifestFileContent 
+     * @returns {void} - articleElement
+     */
+    let showRightAndLeftArrow = function(articleElement, manifestFileContent) { // show the right and left arrow
+        let next_page = selectTutorial(manifestFileContent, extendedNav['#next']); // get the next page
+        let prev_page = selectTutorial(manifestFileContent, extendedNav['#prev']); // get the previous page
+
+
+        if (next_page !== undefined) {
+            $('.hol-Footer-rightLink').removeClass('hide').addClass('show').attr({ 'href': unescape(setParam(window.location.href, queryParam, getMDFileName(next_page.filename))), 'title': 'Next' }).text('Next');
+        }
+        if (prev_page !== undefined) {
+            $('.hol-Footer-leftLink').removeClass('hide').addClass('show').attr({ 'href': unescape(setParam(window.location.href, queryParam, getMDFileName(prev_page.filename))), 'title': 'Previous' }).text('Previous');
+        }
+        return articleElement;
+    }
+    /**
+     * 
+     * @param {*} articleElement 
+     * @returns  {void} - articleElement
+     */
+    let setH2Name = function(articleElement) { // set the name attribute for the h2 tags
+
+        $(articleElement).find('h2').each(function() { // set the name attribute for the h2 tags
+            $(this).before($(document.createElement('div')).attr({ // add a div before the h2 tag
+                'name': alphaNumOnly($(this).text()), // set the name attribute for the div
+                'data-unique': alphaNumOnly($(this).text()) // set the data-unique attribute for the div
+            }));
+        });
+        return articleElement;
+    }
+
+    let alphaNumOnly = function(text) { return text.replace(/[^[A-Za-z0-9:?\(\)]+?/g, ''); }
+
+
+    // QA part of the code
+    // This function is called from the markdown file to perform QA on the content of the lab file 
+    /**
+     * 
+     * @param {*} articleElement 
+     * @param {*} markdownContent 
+     * @param {*} manifestFileContent 
+     * @returns {void} - articleElement
+     */
+    let performQA = function(articleElement, markdownContent, manifestFileContent) { 
+        let error_div = $(document.createElement('div')).attr('id', 'qa-report').html("&lt;div id='qa-reportheader'>&lt;/div>&lt;div id='qa-reportbody'>&lt;ol>&lt;/ol>&lt;/div>");
+        const more_info = "Please see &lt;a href='https://oracle-livelabs.github.io/common/sample-livelabs-templates/create-labs/labs/workshops/freetier/?lab=4-labs-markdown-develop-content' target='_blank'>using the LiveLabs template&lt;/a> for more information.";
+        // check if the title is present in the manifest file
+        let urlExists = function(url, callback) {
+            $.ajax({
+                type: 'HEAD',
+                url: url,
+                success: function() {
+                    callback(true);
+                },
+                error: function() {
+                    callback(false);
+                }
+            });
+        }
+        /**
+         * 
+         * @param {*} error_msg 
+         * @param {*} error_type 
+         * @param {*} follow_id 
+         */
+        let add_issue = function(error_msg, error_type = "", follow_id = false) { // error_type can be major-error, minor-error, warning
+            if (follow_id) {
+                $(error_div).find('ol').append("&lt;li class=" + error_type + ">" + error_msg + " &lt;small onclick=\"window.scrollTo({top:$('." + follow_id + "').offset().top - ($('header').outerHeight() + 10), behavior: 'smooth'});\">(show)&lt;/small>&lt;/li>");
+            } else {
+                $(error_div).find('ol').append("&lt;li class=" + error_type + ">" + error_msg + "&lt;/li>");
+            }
+
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let checkH1 = function(article) { // check if there is only one H1 in the article
+            if ($(article).find('h1').length !== 1) {
+                add_issue("Only a single title is allowed, please edit your Markdown file and remove or recast other content tagged with a single #.", "major-error");
+                $(article).find('h1').addClass('error');
+            }
+        }
+        /**
+         * 
+         * @param {*} manifest 
+         */
+        let checkForGerundInTitle = function(manifest) { // check if the title is a gerund
+            if(manifest.workshoptitle.indexOf("ing ") !== -1) {
+                //updated to specifiy what Imperative means
+                add_issue ("Your workshop title uses a gerund. Consider using an imperative verb workshop title, for example, 'Start' instead of 'Starting'.","major-error")
+                // add_issue("Please use an imperative workshop title instead of a gerund,(e.g 'Start' not 'Starting').", "major-error")
+            }
+        }
+        /**
+         * 
+         * @param {*} manifest 
+         */
+        let checkForGerundInLabTitle = function(manifest) { // check if the lab title is a gerund
+            var i = 0;
+            while (i &lt; manifest.tutorials.length) {
+                if(manifest.tutorials[i].title.indexOf("ing ") !== -1) {
+                    //specifies where imperative issue location(s) within the Lab
+                    add_issue("Your lab: '" + manifest.tutorials[i].title + "', uses a gerund. Consider using an imperative verb lab title instead of a gerund, for example, 'Start' instead of 'Starting'.", "major-error")
+                }
+                i++;
+              }
+            }
+        
+        /**
+         * 
+         * @param {*} markdown 
+         */
+        let checkForHtmlTags = function(markdown) { // check if there is any HTML tags in the markdown
+            let count = (markdown.match(new RegExp("&lt;a href=", "g")) || []).length; // count the number of &lt;a href=...> tags
+            if (count == 1) // if there is only one occurrence of HTML tag, use singular
+                add_issue("There is " + count + " occurrence of HTML (for example: &amp;lt;a href=...&amp;gt;) in your Markdown. Please do not embed HTML in Markdown."); // add the issue to the error_div
+            else if (count > 1) // if there is more than one occurrence of HTML tag, use plural
+                add_issue("There are " + count + " occurrences of HTML (for example: &amp;lt;a href=...&amp;gt;) in your Markdown. Please do not embed HTML in Markdown."); // add the issue to the error_div
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let checkSecondH2Tag = function(article) { // check if the second H2 tag is labeled with "Task"
+            if ($(article).find('h2:eq(1)').text().substr(0, 4).indexOf("Task") !== 0) { // check if the second H2 tag is labeled with "Task"
+                $(article).find('h2:eq(1)').addClass(getFollowId()); // add a class to the second H2 tag
+                add_issue("The second H2 tag (##) of your Markdown file should be labeled with \"Task\".", "", getFollowId()); // add the issue to the error_div
+            }
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let checkImages = function(article) { // check if the images are in the images folder
+            $(article).find('img').each(function() { // loop through all the images
+                // skip the modalImg img frame from QA check
+                if ($(this).attr("id") === "modalImg") { 
+                    return;
+                }
+                try {
+                    // if ($(this).attr('src').split('/')[$(this).attr('src').split('/').length - 2].indexOf("images") !== 0) {
+                    if ($(this).attr('src').indexOf("/images/") &lt;= 0) { // check if the image is in the images folder
+                        add_issue("Your images must be in an &lt;strong>images&lt;/strong> folder. Please rename the folder and update your Markdown."); // add the issue to the error_div
+                        return false; // to break the each loop
+                    }
+                } catch (e) {
+                    add_issue("Your images must be in an &lt;strong>images&lt;/strong> folder. Please rename the folder and update your Markdown."); // add the issue to the error_div
+                    return false;
+                };
+            });
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let checkImagesAltText = function(article) {
+            $(article).find('img').each(function() {
+                // if ($(this).attr("alt").length &lt;1 || (!$(this).attr("alt")) || $(this).attr("alt") == '' || $(this).attr("alt") == undefined || $(this).attr("alt") == 0) {
+                try {
+                if ($(this).attr('alt').length &lt;1 || (!$(this).attr("alt")) || $(this).attr("alt") == '' || $(this).attr("alt") == undefined || $(this).attr("alt") == 0) { 
+                    add_issue("Please make sure that all images contain alternate text.");
+                    return false;
+                    }
+                
+                } catch (e) {
+                return false;
+                };
+            })
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let checkForCopyTag = function(article) { // check if there is a copy tag in the code block
+            let count = 0;
+            $(article).find('pre > code').each(function() { // loop through all the code blocks
+                if ($(this).find('.copy-code').length == 0) { // check if there is a copy tag in the code block
+                    count += 1;
+                    $(this).addClass(getFollowId());
+                    add_issue("You have a code block (```) without a &amp;lt;copy&amp;gt; tag. Please review your Markdown and make the necessary changes.", "", getFollowId()); 
+                }
+            });
+        }
+        /**
+         * 
+         * @param {*} markdown 
+         */
+        let checkCodeBlockFormat = function(markdown) { // check if the code block format is correct
+            let count = (markdown.match(/\````/g) || []).length; // count the number of ```` in the markdown
+            if (count == 1) { // if there is only one occurrence of ```` in the markdown, use singular
+                add_issue("Your Markdown file has " + count + " codeblock with 4 (````). This should be changed to 3 (```). Please review your Markdown and make the necessary changes.")
+            } else if (count > 1) {
+                add_issue("Your Markdown file has " + count + " codeblocks with 4 (````). This should be changed to 3 (```). Please review your Markdown and make the necessary changes.")
+            }
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let updateCount = function(article) { // update the count of issues
+            $(error_div).find('#qa-reportheader').html('Total Issues: ' + $(error_div).find('li').length); // update the count of issues
+            if (!$(error_div).find('li').length) { // if there is no issue, hide the error_div
+                $(error_div).find('#qa-reportbody').hide(); // hide the error_div
+            } else {
+                $(error_div).find('#qa-reportbody').show(); // show the error_div 
+                if ($(error_div).find('#qa-reportbody p').length === 0)  // if there is no issue, hide the error_div
+                    $(error_div).find('#qa-reportbody').append('&lt;p>' + more_info + '&lt;/p>'); // add more info to the error_div
+            }
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let checkLinkExists = function(article) { // check if the links are broken
+            $(article).find('a').each(function() { // loop through all the links
+                let url = $(this).attr('href'); // get the link
+                let url_text = $(this).text(); // get the link text
+                urlExists(url, function(exists) { // check if the link is broken 
+                    if (!exists) { // if the link is broken, add the issue to the error_div
+                        $('a[href$="' + url + '"]').addClass('error ' + getFollowId()); // add a class to the broken link
+                        add_issue("This URL may be broken: &lt;a href='" + url + "' target='_blank'>" + url_text + "&lt;/a>", "major-error", getFollowId()); // add the issue to the error_div
+                        updateCount(article); // update the count of issues
+                    }
+                });
+            });
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let checkImageExists = function(article) {
+            $(article).find('img').each(function() {
+                // skip the modalImg img frame from QA check
+                if ($(this).attr("id") === "modalImg") {
+                    return;
+                }
+                let url = $(this).attr('src');
+                let url_text = $(this).attr('src').split('/')[$(this).attr('src').split('/').length - 1];
+                urlExists(url, function(exists) {
+                    if (!exists) {;
+                        $('img[src$="' + url + '"]').addClass('error ' + getFollowId());
+                        add_issue("The link to image &lt;strong>" + url_text + "&lt;/strong> is broken.", "major-error", getFollowId())
+                        updateCount(article);
+                    }
+                });
+            });
+        }
+        /**
+         * 
+         * @param {*} article 
+         * @param {*} section_name 
+         */
+        let checkIfSectionExists = function(article, section_name) { // check if the section exists
+            if ($(article).find('div[name="' + alphaNumOnly(section_name) + '"]').length === 0) // if the section does not exist, add the issue to the error_div
+                add_issue("You are missing &lt;strong>" + section_name + "&lt;/strong> section."); // add the issue to the error_div
+        }
+        /**
+         * 
+         * @param {*} article 
+         */
+        let checkIndentation = function(article) { // check if the indentation is correct
+            $(article).find('section:not(:first-of-type)').each(function() { // loop through all the sections
+                let tag_list = []; // create an empty array
+                if ($(this).find('h2').text().toUpperCase().trim().indexOf("Task") == 0) { // if the section is a task, check the indentation
+                    $(this).children().each(function() { // loop through all the children of the section
+                        tag_list.push($(this).prop('tagName'));  // add the tag name to the array
+                    });
+
+                    if ($.inArray("UL", tag_list) !== -1 &amp; $.inArray("OL", tag_list) == -1) { // if there is an unordered list, but no ordered list, add the issue to the error_div
+                        add_issue("In section &lt;strong>" + $(this).find('h2').text() + "&lt;/strong>, your steps are not numbered. Numbered steps should follow your STEP element.", "minor-error"); // add the issue to the error_div
+                        $(this).find('h2').addClass('format-error'); // add a class to the section header
+                    }
+
+                    if ($.inArray("PRE", tag_list) > $.inArray("OL", tag_list)) { // if the codeblock is not after the ordered list, add the issue to the error_div
+                        $(this).children('pre').addClass('format-error ' + getFollowId()); // add a class to the codeblock
+                        add_issue("Your codeblock is not indented correctly. Add spaces to indent your codeblock.", "minor-error", getFollowId()); // add the issue to the error_div
+                    }
+
+                    $(this).find('img').each(function() { // loop through all the images in the section
+                        if ($(this).parent().parent().prop('tagName').indexOf("LI") == -1 &amp;&amp; $(this).parent().parent().prop('tagName').indexOf("OL") == -1 &amp;&amp; $(this).parent().parent().prop('tagName').indexOf("UL") == -1) {
+                            // $(this).parents('section').children('h2').addClass('format-error');
+                            $(this).addClass('format-error ' + getFollowId());
+                            add_issue("The image &lt;strong>" + $(this).attr('src').split('/')[$(this).attr('src').split('/').length - 1] + "&lt;/strong> is not aligned with your text blocks. Add spaces to indent your image.", "minor-error", getFollowId());
+                        }
+                    });
+                }
+            });
+        }
+        /**
+         * 
+         * @returns {string} - the follow id
+         */
+        let getFollowId = function() { return 'error_' + $(error_div).find('li').length; } // get the follow id
+
+        checkH1(articleElement); // check if the H1 tag is correct
+        checkForGerundInTitle(manifestFileContent); // check if the title is correct
+        checkForGerundInLabTitle(manifestFileContent); // check if the lab title is correct
+        checkForHtmlTags(markdownContent); // check if the HTML tags are correct
+        checkImages(articleElement); // check if the images are correct
+        checkImagesAltText(articleElement); // check if the images alt text is correct
+        checkCodeBlockFormat(markdownContent); // check if the code block format is correct
+        checkSecondH2Tag(articleElement); // check if the second H2 tag is correct
+        checkForCopyTag(articleElement); // check if the copy tag is correct
+        if (!window.location.href.indexOf("localhost") &amp;&amp; window.location.href.indexOf("127.0.0.1")) { 
+            checkLinkExists(articleElement); 
+        }
+        checkImageExists(articleElement); // check if the images are broken
+        checkIfSectionExists(articleElement, "Acknowledgements"); // check if the Acknowledgements section exists
+        // checkIfSectionExists(articleElement, "See an issue?");
+        checkIndentation(articleElement); // check if the indentation is correct
+        updateCount(articleElement); // update the count of issues
+
+        return $(articleElement).prepend(error_div);
+    }
+
+    // picked up as it is from: https://www.w3schools.com/howto/howto_js_draggable.asp
+    /**
+     * 
+     * @param {*} elmnt  
+     */
+    function dragElement(elmnt) {
+        var pos1 = 0,
+            pos2 = 0,
+            pos3 = 0,
+            pos4 = 0;
+        if (document.getElementById(elmnt.id + "header")) {
+            // if present, the header is where you move the DIV from:
+            document.getElementById(elmnt.id + "header").onmousedown = dragMouseDown;
+
+            $('#qa-reportheader').dblclick(function() { // this line has been added to collapse qa report body
+                $('#qa-reportbody').fadeToggle();
+            });
+
+        } else {
+            // otherwise, move the DIV from anywhere inside the DIV:
+            elmnt.onmousedown = dragMouseDown;
+        }
+        /**
+         * 
+         * @param {*} e 
+         */
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            // get the mouse cursor position at startup:
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            // call a function whenever the cursor moves:
+            document.onmousemove = elementDrag;
+        }
+        /**
+         * 
+         * @param {*} e 
+         */
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            // calculate the new cursor position:
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            // set the element's new position:
+            elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+            elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        }
+        
+        function closeDragElement() {
+            // stop moving when mouse button is released:
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
+
+}();
+/**
+ * 
+ */
+let download = function() {
+
+    //enables download of files
+    let download_file = function(filename, text) {
+        let pom = document.createElement('a');
+        pom.setAttribute('href', 'data:html/plain;charset=utf-8,' + encodeURIComponent(text));
+        pom.setAttribute('download', filename);
+        if (document.createEvent) {
+            let event = document.createEvent('MouseEvents');
+            event.initEvent('click', true, true);
+            pom.dispatchEvent(event);
+        } else {
+            pom.click();
+        }
+    }
+    /**
+     * 
+     */
+    $.when($('img').each(function() {
+            $(this).css('max-width', '75%');
+            if ($(this).attr('src').indexOf('http') == -1)
+                $(this).attr('src', location.protocol + '//' + location.host + location.pathname + $(this).attr('src'));
+        }),
+        $('pre button').remove(),
+        $('pre').attr('style', 'white-space: pre-wrap; white-space: -moz-pre-wrap; white-space: -pre-wrap; white-space: -o-pre-wrap; word-wrap: break-word; max-width: 80%;'),
+        $("#module-content h2:not(:eq(0))").nextAll().show('fast'),
+        $('h2').removeClass('plus minus'),
+        $('#btn_toggle').remove()).done(function() {
+        download_file($('.selected span').text().replace(/[^[A-Za-z0-9:?]+?/g, '') + '.html', '&lt;html>&lt;head>&lt;link rel="stylesheet" href="https://oracle-livelabs.github.io/common/redwood-hol/img/favicon.ico" />&lt;/head>&lt;body style="padding-top: 0px;">' + $('#contentBox')[0].outerHTML + '&lt;/body>&lt;/html>');
+    });
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#download">download</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Fri Mar 24 2023 06:39:14 GMT-0400 (Eastern Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
